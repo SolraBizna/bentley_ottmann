@@ -1,0 +1,7 @@
+[package]
+name = "bentley_ottmann"
+version = "0.1.0"
+authors = ["Solra Bizna <solra@bizna.name>"]
+
+[dependencies]
+num-rational = "0.2"
