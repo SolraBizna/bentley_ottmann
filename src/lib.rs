@@ -16,10 +16,9 @@ use std::fmt::Debug;
 mod pqueue;
 use pqueue::PriorityQueue;
 
-/// An input coordinate, implemented as an `i64`. Note: If your input
-/// coordinates get too large, they will likely overflow. In practice, even
-/// the full range of an `i32` may not be usable.
-pub type Fixed = i64;
+/// An input coordinate, implemented as an `i32`. Note: If your input
+/// coordinates get too large, they may still overflow.
+pub type Fixed = i32;
 /// An exact intersection coordinate, implemented as a ratio of two `i64`s.
 pub type Frac = num_rational::Ratio<i64>;
 
@@ -90,10 +89,10 @@ pub trait InputLineSegment : Copy + Eq {
                         -> (Frac, Frac) {
         let (a1x, a1y, a2x, a2y) = self.get_coords();
         let (b1x, b1y, b2x, b2y) = other.get_coords();
-        let (a1x, a1y) = (Frac::from(a1x), Frac::from(a1y));
-        let (a2x, a2y) = (Frac::from(a2x), Frac::from(a2y));
-        let (b1x, b1y) = (Frac::from(b1x), Frac::from(b1y));
-        let (b2x, b2y) = (Frac::from(b2x), Frac::from(b2y));
+        let (a1x, a1y) = (Frac::from(a1x as i64), Frac::from(a1y as i64));
+        let (a2x, a2y) = (Frac::from(a2x as i64), Frac::from(a2y as i64));
+        let (b1x, b1y) = (Frac::from(b1x as i64), Frac::from(b1y as i64));
+        let (b2x, b2y) = (Frac::from(b2x as i64), Frac::from(b2y as i64));
         // the normal of a1→a2
         let anx = a2y - a1y;
         let any = a1x - a2x; // = -(a2x-a1x)
@@ -182,15 +181,15 @@ where LineSegmentType: InputLineSegment + PartialEq + Debug,
     for line in lines {
         let (x1, y1, x2, y2) = line.get_coords();
         if x1 > x2 || (x1 == x2 && y1 > y2) {
-            queue.insert((Frac::from(x2), Frac::from(y2)),
+            queue.insert((Frac::from(x2 as i64), Frac::from(y2 as i64)),
                           LeftEndpoint(line));
-            queue.insert((Frac::from(x1), Frac::from(y1)),
+            queue.insert((Frac::from(x1 as i64), Frac::from(y1 as i64)),
                           RightEndpoint(line));
         }
         else {
-            queue.insert((Frac::from(x1), Frac::from(y1)),
+            queue.insert((Frac::from(x1 as i64), Frac::from(y1 as i64)),
                           LeftEndpoint(line));
-            queue.insert((Frac::from(x2), Frac::from(y2)),
+            queue.insert((Frac::from(x2 as i64), Frac::from(y2 as i64)),
                           RightEndpoint(line));
         }
     }
@@ -205,18 +204,20 @@ where LineSegmentType: InputLineSegment + PartialEq + Debug,
         for line in active.iter_mut() {
             let (x1, y1, x2, _y2) = line.seg.get_coords();
             if x1 != x2 {
-                line.cur_y = Frac::from(y1) + (x - Frac::from(x1))
+                line.cur_y = Frac::from(y1 as i64) + (x -Frac::from(x1 as i64))
                     * line.slope;
             }
         }
         active.sort_by_key(|x| x.cur_y);
         match event {
             LeftEndpoint(seg) => {
-                line_begin(seg, x.to_integer(), y.to_integer());
+                line_begin(seg,
+                           x.to_integer() as Fixed,
+                           y.to_integer() as Fixed);
                 let (x1, y1, x2, y2) = seg.get_coords();
                 let new_line = ActiveLine {
                     cur_y: y,
-                    slope: Frac::new(y2 - y1, x2 - x1),
+                    slope: Frac::new((y2 - y1) as i64, (x2 - x1) as i64),
                     seg: seg,
                 };
                 let mut target_index = active.len();
@@ -255,7 +256,9 @@ where LineSegmentType: InputLineSegment + PartialEq + Debug,
                 active.insert(target_index, new_line);
             },
             RightEndpoint(seg) => {
-                line_end(seg, x.to_integer(), y.to_integer());
+                line_end(seg,
+                         x.to_integer() as Fixed,
+                         y.to_integer() as Fixed);
                 let mut index = None;
                 for n in 0 .. active.len() {
                     if active[n].seg == seg { index = Some(n); break }
