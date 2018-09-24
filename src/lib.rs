@@ -11,8 +11,6 @@
 
 extern crate num_rational;
 
-use std::fmt::Debug;
-
 mod pqueue;
 use pqueue::PriorityQueue;
 
@@ -130,7 +128,7 @@ impl<'a> InputLineSegment for &'a(Fixed, Fixed, Fixed, Fixed) {
 }
 
 #[derive(Debug,PartialEq,Eq)]
-enum CandidateEvent<LineSegmentType: Copy + PartialEq + Debug> {
+enum CandidateEvent<LineSegmentType: Copy + PartialEq> {
     LeftEndpoint(LineSegmentType),
     RightEndpoint(LineSegmentType),
     // part of the implementation assumes that the first segment is *below* the
@@ -139,11 +137,30 @@ enum CandidateEvent<LineSegmentType: Copy + PartialEq + Debug> {
 }
 use CandidateEvent::*;
 
-#[derive(Debug)]
-struct ActiveLine<LineSegmentType: Copy + Debug> {
+struct ActiveLine<LineSegmentType: Copy> {
     cur_y: Frac,
     slope: Frac,
     seg: LineSegmentType,
+}
+
+/// Receives intersection and line segment begin/end information from
+/// [`find_intersections`].
+///
+/// [`find_intersections`]: fn.find_intersections.html
+pub trait Handler<LineSegmentType: InputLineSegment + PartialEq> {
+    /// Called when two line segments intersect.
+    fn intersection(&mut self,
+                    lower_seg: LineSegmentType, upper_seg: LineSegmentType,
+                    intersection_x: Frac, intersection_y: Frac);
+    /// Called when we reach the left endpoint of a line segment. (For vertical
+    /// lines, the left endpoint is the one with the lowest Y coordinate.)
+    fn left_of_line(&mut self,
+                    _seg: LineSegmentType, _x: Fixed, _y: Fixed) {}
+    /// Called when we reach the right endpoint of a line segment. (For
+    /// vertical lines, the right endpoint is the one with the highest Y
+    /// coordinate.)
+    fn right_of_line(&mut self,
+                     _seg: LineSegmentType, _x: Fixed, _y: Fixed) {}
 }
 
 /// Uses the Bentley-Ottmann algorithm to find all intersections of the given
@@ -154,8 +171,6 @@ struct ActiveLine<LineSegmentType: Copy + Debug> {
 /// low-Y-to-high-Y. For vertical lines, the "left" endpoint is the one with
 /// the lower Y coordinate.
 ///
-/// Calls the respective handler for each thing found.
-///
 /// The default implementation of [`InputLineSegment`] assumes that any two
 /// lines which share an endpoint are consecutive parts of the same "path" and
 /// therefore should not intersect. If your input consists of multiple "paths",
@@ -164,18 +179,11 @@ struct ActiveLine<LineSegmentType: Copy + Debug> {
 /// of path membership of segments.)
 ///
 /// [`InputLineSegment`]: trait.InputLineSegment.html
-pub fn find_intersections<LineIterator, LineSegmentType,
-                          IntersectionHandler, LineBeginHandler,
-                          LineEndHandler>
-(lines: LineIterator,
- mut intersection: IntersectionHandler,
- mut line_begin: LineBeginHandler,
- mut line_end: LineEndHandler) -> ()
-where LineSegmentType: InputLineSegment + PartialEq + Debug,
+pub fn find_intersections<LineIterator, LineSegmentType, H>
+(lines: LineIterator, handler: &mut H) -> ()
+where LineSegmentType: InputLineSegment + PartialEq,
       LineIterator: Iterator<Item=LineSegmentType>,
-      IntersectionHandler: FnMut(LineSegmentType, LineSegmentType, Frac, Frac),
-      LineBeginHandler: FnMut(LineSegmentType, Fixed, Fixed),
-      LineEndHandler: FnMut(LineSegmentType, Fixed, Fixed),
+      H: Handler<LineSegmentType>
 {
     let mut queue = PriorityQueue::new();
     for line in lines {
@@ -211,9 +219,9 @@ where LineSegmentType: InputLineSegment + PartialEq + Debug,
         active.sort_by_key(|x| x.cur_y);
         match event {
             LeftEndpoint(seg) => {
-                line_begin(seg,
-                           x.to_integer() as Fixed,
-                           y.to_integer() as Fixed);
+                handler.left_of_line(seg,
+                                     x.to_integer() as Fixed,
+                                     y.to_integer() as Fixed);
                 let (x1, y1, x2, y2) = seg.get_coords();
                 let slope = if x2 == x1 { Frac::from(0) }
                 else { Frac::new((y2 - y1) as i64, (x2 - x1) as i64) };
@@ -258,9 +266,9 @@ where LineSegmentType: InputLineSegment + PartialEq + Debug,
                 active.insert(target_index, new_line);
             },
             RightEndpoint(seg) => {
-                line_end(seg,
-                         x.to_integer() as Fixed,
-                         y.to_integer() as Fixed);
+                handler.right_of_line(seg,
+                                      x.to_integer() as Fixed,
+                                      y.to_integer() as Fixed);
                 let mut index = None;
                 for n in 0 .. active.len() {
                     if active[n].seg == seg { index = Some(n); break }
@@ -280,7 +288,7 @@ where LineSegmentType: InputLineSegment + PartialEq + Debug,
                 }
             },
             Intersection(lower_seg, higher_seg) => {
-                intersection(lower_seg, higher_seg, x, y);
+                handler.intersection(lower_seg, higher_seg, x, y);
                 let mut lower_index = None;
                 for n in 0 .. active.len() {
                     if active[n].seg == lower_seg {
@@ -329,7 +337,6 @@ where LineSegmentType: InputLineSegment + PartialEq + Debug,
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::cell::RefCell;
     #[test]
     fn test_twice_triangle_area() {
         assert_eq!(twice_triangle_area((10, 10), (20, 10), (10, 20)),
@@ -358,11 +365,36 @@ mod tests {
     type TestSeg = (Fixed, Fixed, Fixed, Fixed);
     #[derive(Debug,PartialEq)]
     enum Event {
-        Begin(TestSeg, Fixed, Fixed),
-        End(TestSeg, Fixed, Fixed),
+        Left(TestSeg, Fixed, Fixed),
+        Right(TestSeg, Fixed, Fixed),
         Intersection(TestSeg, TestSeg, Frac, Frac),
     }
-    use self::Event::{Begin,End,Intersection};
+    use self::Event::{Left,Right,Intersection};
+    struct EventAccumulator {
+        events: Vec<Event>
+    }
+    impl EventAccumulator {
+        pub fn new() -> EventAccumulator { EventAccumulator {
+            events: Vec::new()
+        } }
+        pub fn into_inner(self) -> Vec<Event> { self.events }
+    }
+    impl<'a> Handler<&'a TestSeg> for EventAccumulator {
+        fn intersection(&mut self,
+                        lower_seg: &TestSeg,
+                        upper_seg: &TestSeg,
+                        ix: Frac, iy: Frac) {
+            self.events.push(Intersection(*lower_seg, *upper_seg, ix, iy));
+        }
+        fn left_of_line(&mut self,
+                        seg: &TestSeg, x: Fixed, y: Fixed) {
+            self.events.push(Left(*seg, x, y));
+        }
+        fn right_of_line(&mut self,
+                         seg: &TestSeg, x: Fixed, y: Fixed) {
+            self.events.push(Right(*seg, x, y));
+        }
+    }
     #[test]
     fn pentagram() {
         let lines: &[TestSeg] = &[
@@ -372,36 +404,30 @@ mod tests {
             (-5,  1,  5,  1),
             ( 5,  1, -3, -5),
         ];
-        let events = RefCell::new(Vec::new());
-        find_intersections(lines.iter(),
-                           |a,b,x,y| events.borrow_mut()
-                           .push(Event::Intersection(*a, *b, x, y)),
-                           |a,x,y| events.borrow_mut()
-                           .push(Event::Begin(*a, x, y)),
-                           |a,x,y| events.borrow_mut()
-                           .push(Event::End(*a, x, y)));
+        let mut events = EventAccumulator::new();
+        find_intersections(lines.iter(), &mut events);
         assert_eq!(&events.into_inner()[..],
                    &[
-                       Begin((-5, 1, 5, 1), -5, 1),
-                       Begin((3, -5, -5, 1), -5, 1),
-                       Begin((5, 1, -3, -5), -3, -5),
-                       Begin((-3, -5, 0, 5), -3, -5),
+                       Left((-5, 1, 5, 1), -5, 1),
+                       Left((3, -5, -5, 1), -5, 1),
+                       Left((5, 1, -3, -5), -3, -5),
+                       Left((-3, -5, 0, 5), -3, -5),
                        Intersection((-3, -5, 0, 5), (3, -5, -5, 1),
                                     Frac::new(-93, 49), Frac::new(-65, 49)),
                        Intersection((-3, -5, 0, 5), (-5, 1, 5, 1),
                                     Frac::new(-6, 5), Frac::new(1, 1)),
                        Intersection((5, 1, -3, -5), (3, -5, -5, 1),
                                     Frac::new(0, 1), Frac::new(-11, 4)),
-                       Begin((0, 5, 3, -5), 0, 5),
-                       End((-3, -5, 0, 5), 0, 5),
+                       Left((0, 5, 3, -5), 0, 5),
+                       Right((-3, -5, 0, 5), 0, 5),
                        Intersection((-5, 1, 5, 1), (0, 5, 3, -5),
                                     Frac::new(6, 5), Frac::new(1, 1)),
                        Intersection((5, 1, -3, -5), (0, 5, 3, -5),
                                     Frac::new(93, 49), Frac::new(-65, 49)),
-                       End((3, -5, -5, 1), 3, -5),
-                       End((0, 5, 3, -5), 3, -5),
-                       End((5, 1, -3, -5), 5, 1),
-                       End((-5, 1, 5, 1), 5, 1),
+                       Right((3, -5, -5, 1), 3, -5),
+                       Right((0, 5, 3, -5), 3, -5),
+                       Right((5, 1, -3, -5), 5, 1),
+                       Right((-5, 1, 5, 1), 5, 1),
                    ]);
     }
 }
