@@ -215,9 +215,11 @@ where LineSegmentType: InputLineSegment + PartialEq + Debug,
                            x.to_integer() as Fixed,
                            y.to_integer() as Fixed);
                 let (x1, y1, x2, y2) = seg.get_coords();
+                let slope = if x2 == x1 { Frac::from(0) }
+                else { Frac::new((y2 - y1) as i64, (x2 - x1) as i64) };
                 let new_line = ActiveLine {
                     cur_y: y,
-                    slope: Frac::new((y2 - y1) as i64, (x2 - x1) as i64),
+                    slope,
                     seg: seg,
                 };
                 let mut target_index = active.len();
