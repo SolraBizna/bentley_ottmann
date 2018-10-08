@@ -1,6 +1,6 @@
-This is a Rust implementation of the [Bentley­Ottmann algorithm] for finding all intersection points within a set of line segments.
+This is a Rust implementation of the [Bentley–Ottmann algorithm] for finding all intersection points within a set of line segments.
 
-[Bentley­Ottmann algorithm]: https://en.wikipedia.org/wiki/Bentley%E2%80%93Ottmann_algorithm
+[Bentley–Ottmann algorithm]: https://en.wikipedia.org/wiki/Bentley%E2%80%93Ottmann_algorithm
 
 This implementation currently uses 32-bit integers for endpoint coordinates, and ratios of two 64-bit integers for intersection coordinates. These were chosen as adequate for use with FreeType outlines. A future version of this crate will use generics to allow arbitrary suitable types for endpoint coordinates and intersection coordinates.
 

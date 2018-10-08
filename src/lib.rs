@@ -1,8 +1,8 @@
-//! This crate implements the [Bentley­Ottmann algorithm] for finding all
+//! This crate implements the [Bentley–Ottmann algorithm] for finding all
 //! intersection points within a set of line segments. See the documentation
 //! for [`find_intersections`].
 //!
-//! [Bentley­Ottmann algorithm]: https://en.wikipedia.org/wiki/Bentley%E2%80%93Ottmann_algorithm
+//! [Bentley–Ottmann algorithm]: https://en.wikipedia.org/wiki/Bentley%E2%80%93Ottmann_algorithm
 //! [`find_intersections`]: fn.find_intersections.html
 
 // The following references were the main ones that were used:
