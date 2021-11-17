@@ -96,7 +96,8 @@ pub trait InputLineSegment : Copy + Eq {
         let any = a1x - a2x; // = -(a2x-a1x)
         let b1dot = anx * (b1x - a1x) + any * (b1y - a1y);
         let b2dot = anx * (b2x - a1x) + any * (b2y - a1y);
-        debug_assert!((*b1dot.numer() < 0) != (*b2dot.numer() < 0));
+        debug_assert!((*b1dot.numer() < 0) != (*b2dot.numer() < 0)
+                      || (*b1dot.numer() > 0) != (*b2dot.numer() > 0));
         let b1dot = if *b1dot.numer() < 0 { -b1dot } else { b1dot };
         let b2dot = if *b2dot.numer() < 0 { -b2dot } else { b2dot };
         let totaldot = b1dot + b2dot;
