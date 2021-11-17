@@ -207,9 +207,12 @@ where LineSegmentType: InputLineSegment + PartialEq,
     // get better performance in practice by linear-searching and sorting a
     // small array than a small tree
     let mut active: Vec<ActiveLine<LineSegmentType>> = Vec::new();
+    let mut min_accepted_x = Frac::from(i32::MIN as i64);
     while let Some((key, event)) = queue.pop() {
         let x = key.0;
         let y = key.1;
+        if x < min_accepted_x { continue }
+        else { min_accepted_x = x; }
         for line in active.iter_mut() {
             let (x1, y1, x2, _y2) = line.seg.get_coords();
             if x1 != x2 {
